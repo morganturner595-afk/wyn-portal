@@ -21,7 +21,7 @@
 </head>
 <body>
   <h1>W.Y.N. Portal</h1>
-  
+
   <div id="login-section">
     <h2>Login</h2>
     <label for="username">Name:</label>
@@ -42,7 +42,7 @@
       <h3>Clients</h3>
       <table id="client-table">
         <thead>
-          <tr><th>Name</th><th>Age</th><th>Dependents</th><th>Role</th><th>Actions</th></tr>
+          <tr><th>ID</th><th>Name</th><th>Age</th><th>Dependents</th><th>Role</th><th>Actions</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -68,10 +68,14 @@
       <button id="add-service-btn">Add Service</button>
 
       <h4>Appointments & Notes</h4>
-      <input type="date" id="appointment-date">
+      <input type="datetime-local" id="appointment-datetime">
       <textarea id="appointment-note" placeholder="Enter note"></textarea><br>
       <button id="add-appointment-btn">Add Appointment</button>
       <ul id="appointment-list"></ul>
+
+      <h4>Document Upload</h4>
+      <input type="file" id="doc-upload" multiple><br>
+      <ul id="doc-list"></ul>
 
       <h4>Audit Trail</h4>
       <ul id="audit-list"></ul>
@@ -92,12 +96,17 @@
       if (stored) users = JSON.parse(stored);
     }
 
+    function generateClientID() {
+      return 'C' + Math.floor(Math.random() * 1000000);
+    }
+
     function renderClientList() {
       const tbody = document.querySelector('#client-table tbody');
       tbody.innerHTML = '';
       users.forEach((client, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
+          <td>${client.id}</td>
           <td>${client.name}</td>
           <td>${client.age}</td>
           <td>${client.dependents}</td>
@@ -116,6 +125,7 @@
       document.getElementById('client-dependents').value = currentClient.dependents;
       renderServices();
       renderAppointments();
+      renderDocuments();
       renderAudit();
     }
 
@@ -136,7 +146,18 @@
       if (!currentClient.appointments) currentClient.appointments = [];
       currentClient.appointments.forEach((a, i) => {
         const li = document.createElement('li');
-        li.innerText = `${a.date}: ${a.note}`;
+        li.innerText = `${a.datetime}: ${a.note} (added by ${a.by})`;
+        ul.appendChild(li);
+      });
+    }
+
+    function renderDocuments() {
+      const ul = document.getElementById('doc-list');
+      ul.innerHTML = '';
+      if (!currentClient.documents) currentClient.documents = [];
+      currentClient.documents.forEach((d) => {
+        const li = document.createElement('li');
+        li.innerText = d.name;
         ul.appendChild(li);
       });
     }
@@ -155,7 +176,7 @@
     function addAudit(message) {
       const timestamp = new Date().toLocaleString();
       if (!currentClient.audit) currentClient.audit = [];
-      currentClient.audit.push(`${timestamp} - ${message}`);
+      currentClient.audit.push(`${timestamp} - ${currentUser.name}: ${message}`);
       renderAudit();
       saveData();
     }
@@ -176,8 +197,10 @@
       const age = prompt('Enter client age');
       const dependents = prompt('Enter number of dependents');
       const role = 'client';
-      const newClient = {name, age, dependents, role, services: [], appointments: [], audit: []};
+      const id = generateClientID();
+      const newClient = {id, name, age, dependents, role, services: [], appointments: [], documents: [], audit: []};
       users.push(newClient);
+      addAudit(`Added new client: ${name}`);
       saveData();
       renderClientList();
     });
@@ -194,6 +217,7 @@
       const index = users.indexOf(currentClient);
       if (index > -1) {
         users.splice(index, 1);
+        addAudit(`Deleted client: ${currentClient.name}`);
         currentClient = null;
         saveData();
         document.getElementById('client-detail-section').classList.add('hidden');
@@ -212,14 +236,23 @@
     });
 
     document.getElementById('add-appointment-btn').addEventListener('click', () => {
-      const date = document.getElementById('appointment-date').value;
+      const datetime = document.getElementById('appointment-datetime').value;
       const note = document.getElementById('appointment-note').value;
-      if (!date || !note) return;
-      if (!currentClient.appointments) currentClient.appointments = [];
-      currentClient.appointments.push({date, note});
-      addAudit(`Added appointment on ${date}`);
+      if (!datetime || !note) return;
+      currentClient.appointments.push({datetime, note, by: currentUser.name});
+      addAudit(`Added appointment on ${datetime}`);
       saveData();
       renderAppointments();
+    });
+
+    document.getElementById('doc-upload').addEventListener('change', (e) => {
+      if (!currentClient.documents) currentClient.documents = [];
+      Array.from(e.target.files).forEach(f => {
+        currentClient.documents.push({name: f.name});
+        addAudit(`Uploaded document: ${f.name}`);
+      });
+      renderDocuments();
+      saveData();
     });
 
     function removeService(index) {
