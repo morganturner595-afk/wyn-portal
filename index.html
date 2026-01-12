@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>W.Y.N. Portal</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1, h2 { color: #2a6ebb; }
+    .hidden { display: none; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .status-approved { color: green; font-weight: bold; }
+    .status-pending { color: orange; font-weight: bold; }
+    .status-partial { color: blue; font-weight: bold; }
+    .status-denied { color: red; font-weight: bold; }
+    button { margin: 2px; }
+    input, select, textarea { margin: 2px; padding: 4px; }
+  </style>
+</head>
+<body>
+  <h1>W.Y.N. Portal</h1>
+  
+  <div id="login-section">
+    <h2>Login</h2>
+    <label for="username">Name:</label>
+    <input type="text" id="username" placeholder="Enter your name">
+    <label for="role">Role:</label>
+    <select id="role">
+      <option value="client">Client</option>
+      <option value="admin">Admin (CFO)</option>
+      <option value="ceo">CEO</option>
+      <option value="coceo">Co-CEO</option>
+    </select>
+    <button id="login-btn">Login</button>
+  </div>
+
+  <div id="dashboard" class="hidden">
+    <h2>Dashboard</h2>
+    <div id="client-list-section">
+      <h3>Clients</h3>
+      <table id="client-table">
+        <thead>
+          <tr><th>Name</th><th>Age</th><th>Dependents</th><th>Role</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button id="add-client-btn">Add Client</button>
+    </div>
+
+    <div id="client-detail-section" class="hidden">
+      <h3>Client Details: <span id="client-name"></span></h3>
+      <label>Age:</label><input id="client-age" type="number"><br>
+      <label>Dependents:</label><input id="client-dependents" type="number"><br>
+      <button id="save-client-btn">Save Demographics</button>
+      <button id="delete-client-btn">Delete Client</button>
+
+      <h4>Services</h4>
+      <ul id="service-list"></ul>
+      <input type="text" id="new-service-name" placeholder="Service name">
+      <select id="new-service-status">
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="partial">Partial</option>
+        <option value="denied">Denied</option>
+      </select>
+      <button id="add-service-btn">Add Service</button>
+
+      <h4>Appointments & Notes</h4>
+      <input type="date" id="appointment-date">
+      <textarea id="appointment-note" placeholder="Enter note"></textarea><br>
+      <button id="add-appointment-btn">Add Appointment</button>
+      <ul id="appointment-list"></ul>
+
+      <h4>Audit Trail</h4>
+      <ul id="audit-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    let users = [];
+    let currentUser = null;
+    let currentClient = null;
+
+    function saveData() {
+      localStorage.setItem('wynClients', JSON.stringify(users));
+    }
+
+    function loadData() {
+      const stored = localStorage.getItem('wynClients');
+      if (stored) users = JSON.parse(stored);
+    }
+
+    function renderClientList() {
+      const tbody = document.querySelector('#client-table tbody');
+      tbody.innerHTML = '';
+      users.forEach((client, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${client.name}</td>
+          <td>${client.age}</td>
+          <td>${client.dependents}</td>
+          <td>${client.role}</td>
+          <td><button onclick='selectClient(${index})'>View</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function selectClient(index) {
+      currentClient = users[index];
+      document.getElementById('client-detail-section').classList.remove('hidden');
+      document.getElementById('client-name').innerText = currentClient.name;
+      document.getElementById('client-age').value = currentClient.age;
+      document.getElementById('client-dependents').value = currentClient.dependents;
+      renderServices();
+      renderAppointments();
+      renderAudit();
+    }
+
+    function renderServices() {
+      const ul = document.getElementById('service-list');
+      ul.innerHTML = '';
+      if (!currentClient.services) currentClient.services = [];
+      currentClient.services.forEach((s, i) => {
+        const li = document.createElement('li');
+        li.innerHTML = `${s.name} - <span class='status-${s.status}'>${s.status}</span> <button onclick='removeService(${i})'>Remove</button>`;
+        ul.appendChild(li);
+      });
+    }
+
+    function renderAppointments() {
+      const ul = document.getElementById('appointment-list');
+      ul.innerHTML = '';
+      if (!currentClient.appointments) currentClient.appointments = [];
+      currentClient.appointments.forEach((a, i) => {
+        const li = document.createElement('li');
+        li.innerText = `${a.date}: ${a.note}`;
+        ul.appendChild(li);
+      });
+    }
+
+    function renderAudit() {
+      const ul = document.getElementById('audit-list');
+      ul.innerHTML = '';
+      if (!currentClient.audit) currentClient.audit = [];
+      currentClient.audit.forEach((entry) => {
+        const li = document.createElement('li');
+        li.innerText = entry;
+        ul.appendChild(li);
+      });
+    }
+
+    function addAudit(message) {
+      const timestamp = new Date().toLocaleString();
+      if (!currentClient.audit) currentClient.audit = [];
+      currentClient.audit.push(`${timestamp} - ${message}`);
+      renderAudit();
+      saveData();
+    }
+
+    document.getElementById('login-btn').addEventListener('click', () => {
+      const name = document.getElementById('username').value;
+      const role = document.getElementById('role').value;
+      if (!name) return alert('Enter name');
+      currentUser = {name, role};
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+      renderClientList();
+    });
+
+    document.getElementById('add-client-btn').addEventListener('click', () => {
+      const name = prompt('Enter client name');
+      if (!name) return;
+      const age = prompt('Enter client age');
+      const dependents = prompt('Enter number of dependents');
+      const role = 'client';
+      const newClient = {name, age, dependents, role, services: [], appointments: [], audit: []};
+      users.push(newClient);
+      saveData();
+      renderClientList();
+    });
+
+    document.getElementById('save-client-btn').addEventListener('click', () => {
+      currentClient.age = document.getElementById('client-age').value;
+      currentClient.dependents = document.getElementById('client-dependents').value;
+      addAudit('Updated demographics');
+      saveData();
+      renderClientList();
+    });
+
+    document.getElementById('delete-client-btn').addEventListener('click', () => {
+      const index = users.indexOf(currentClient);
+      if (index > -1) {
+        users.splice(index, 1);
+        currentClient = null;
+        saveData();
+        document.getElementById('client-detail-section').classList.add('hidden');
+        renderClientList();
+      }
+    });
+
+    document.getElementById('add-service-btn').addEventListener('click', () => {
+      const name = document.getElementById('new-service-name').value;
+      const status = document.getElementById('new-service-status').value;
+      if (!name) return;
+      currentClient.services.push({name, status});
+      addAudit(`Added service: ${name} (${status})`);
+      saveData();
+      renderServices();
+    });
+
+    document.getElementById('add-appointment-btn').addEventListener('click', () => {
+      const date = document.getElementById('appointment-date').value;
+      const note = document.getElementById('appointment-note').value;
+      if (!date || !note) return;
+      if (!currentClient.appointments) currentClient.appointments = [];
+      currentClient.appointments.push({date, note});
+      addAudit(`Added appointment on ${date}`);
+      saveData();
+      renderAppointments();
+    });
+
+    function removeService(index) {
+      const removed = currentClient.services.splice(index, 1);
+      addAudit(`Removed service: ${removed[0].name}`);
+      saveData();
+      renderServices();
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
